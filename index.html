@@ -552,7 +552,9 @@ Spine-Switch-02, 10.0.1.2, Gi0/2"></textarea>
 
     function connectWS() {
       try {
-        ws = new WebSocket('ws://localhost:3000');
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'localhost:3000' : window.location.host;
+        ws = new WebSocket(`${protocol}//${host}`);
 
         ws.onopen = () => {
           wsConnected = true;
