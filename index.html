@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArizLive | Real ICMP Ping & Switch PuTTY Console</title>
+  <meta name="description" content="ArizLive - Real-Time ICMP Network Ping Monitor, PuTTY/SSH Switch Diagnostics, and Live NOC Dashboard.">
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg: #060912;
+      --surface: #0b1122;
+      --card: rgba(14, 21, 40, 0.88);
+      --card-hover: rgba(22, 33, 62, 0.95);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(0, 240, 255, 0.25);
+      --cyan: #00f0ff;
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --dim: #475569;
+      --font: 'Outfit', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      padding-bottom: 60px;
+    }
+
+    /* Ambient background glow */
+    .glow { position: fixed; border-radius: 50%; filter: blur(160px); pointer-events: none; z-index: 0; opacity: 0.11; }
+    .g1 { width: 750px; height: 750px; background: var(--cyan); top: -200px; left: -200px; }
+    .g2 { width: 700px; height: 700px; background: var(--purple); bottom: -200px; right: -200px; }
+
+    /* ===== NAVBAR ===== */
+    .navbar {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(6, 9, 18, 0.92);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .brand { display: flex; align-items: center; gap: 0.85rem; }
+    .brand-icon {
+      width: 42px; height: 42px;
+      background: linear-gradient(135deg, var(--cyan), #2563eb);
+      border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem; color: #000;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+    }
+    .brand-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.5px; }
+    .brand-title span { color: var(--cyan); text-shadow: 0 0 10px rgba(0, 240, 255, 0.4); }
+    .brand-tag { font-family: var(--mono); font-size: 0.62rem; color: var(--cyan); letter-spacing: 1.5px; font-weight: 700; text-transform: uppercase; }
+
+    /* Status Badges */
+    .ws-badge {
+      display: flex; align-items: center; gap: 0.45rem;
+      padding: 0.35rem 0.8rem; border-radius: 99px;
+      font-family: var(--mono); font-size: 0.75rem; font-weight: 700;
+      border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); color: var(--red);
+      transition: all 0.3s;
+    }
+    .ws-badge.online { border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.12); color: var(--green); }
+
+    .nav-pills { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .pill {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.8rem; border-radius: 99px;
+      font-family: var(--mono); font-size: 0.78rem; font-weight: 700;
+      border: 1px solid var(--border); background: rgba(255, 255, 255, 0.03);
+      cursor: pointer; transition: all 0.2s; user-select: none;
+    }
+    .pill:hover { transform: translateY(-2px); }
+    .pill.p-green { color: var(--green); border-color: rgba(16, 185, 129, 0.35); background: rgba(16, 185, 129, 0.08); }
+    .pill.p-red   { color: var(--red); border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.08); }
+    .pill.active  { box-shadow: 0 0 14px currentColor; }
+
+    .pd { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .pd.g { background: var(--green); box-shadow: 0 0 7px var(--green); }
+    .pd.r { background: var(--red); box-shadow: 0 0 7px var(--red); animation: pdAnim 0.8s infinite; }
+    @keyframes pdAnim { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+    /* ===== ADD FORM BAR ===== */
+    .add-panel {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.5rem; display: flex; align-items: flex-end; gap: 0.65rem; flex-wrap: wrap;
+    }
+    .fld { display: flex; flex-direction: column; gap: 0.25rem; }
+    .fld label { font-size: 0.68rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .inp {
+      background: rgba(0, 0, 0, 0.55); border: 1px solid var(--border);
+      border-radius: 9px; padding: 0.52rem 0.8rem;
+      color: var(--text); font-family: var(--mono); font-size: 0.82rem; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .inp:focus { border-color: var(--cyan); box-shadow: 0 0 10px rgba(0, 240, 255, 0.25); }
+    .inp.w200 { width: 200px; }
+    .inp.w160 { width: 160px; }
+    .inp.w120 { width: 120px; }
+    .inp.w100 { width: 100px; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.42rem;
+      padding: 0.55rem 1rem; border-radius: 9px; border: none;
+      font-size: 0.82rem; font-weight: 700; cursor: pointer;
+      font-family: var(--font); transition: all 0.2s; white-space: nowrap;
+    }
+    .btn:hover { transform: translateY(-2px); filter: brightness(1.15); }
+    .btn-cyan   { background: var(--cyan); color: #000; box-shadow: 0 0 14px rgba(0, 240, 255, 0.3); }
+    .btn-green  { background: var(--green); color: #000; box-shadow: 0 0 14px rgba(16, 185, 129, 0.3); }
+    .btn-red    { background: var(--red); color: #fff; box-shadow: 0 0 14px rgba(239, 68, 68, 0.3); }
+    .btn-purple { background: var(--purple); color: #fff; box-shadow: 0 0 14px rgba(139, 92, 246, 0.3); }
+    .btn-putty  { background: linear-gradient(135deg, #10b981, #0284c7); color: #fff; font-family: var(--mono); font-weight: 800; box-shadow: 0 0 14px rgba(2, 132, 199, 0.35); }
+    .btn-dark   { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); color: var(--text); }
+    .btn-sm     { padding: 0.32rem 0.65rem; font-size: 0.74rem; border-radius: 7px; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+    /* ===== CONTROLS ===== */
+    .controls {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.65rem 1.5rem; gap: 1rem; flex-wrap: wrap;
+      border-bottom: 1px solid var(--border); background: rgba(6, 9, 18, 0.7);
+    }
+    .sw { position: relative; flex: 1; max-width: 320px; min-width: 180px; }
+    .sw i { position: absolute; left: 0.8rem; top: 50%; transform: translateY(-50%); color: var(--dim); font-size: 0.85rem; }
+    .sinp {
+      width: 100%; background: rgba(0, 0, 0, 0.45); border: 1px solid var(--border);
+      border-radius: 9px; padding: 0.48rem 0.75rem 0.48rem 2.1rem;
+      color: var(--text); font-family: var(--font); font-size: 0.83rem; outline: none;
+    }
+    .sinp:focus { border-color: var(--cyan); }
+    .cr { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+    .sel {
+      background: rgba(0, 0, 0, 0.45); border: 1px solid var(--border);
+      color: var(--text); padding: 0.45rem 0.75rem; border-radius: 9px;
+      font-size: 0.82rem; outline: none; font-family: var(--font);
+    }
+
+    /* ===== GRID ===== */
+    .grid-wrap { padding: 1rem 1.5rem; }
+    .sites-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 0.95rem; }
+
+    .site-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 0.95rem 1.1rem;
+      display: flex; flex-direction: column; gap: 0.65rem;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative; overflow: hidden;
+    }
+    .site-card:hover { transform: translateY(-3px); background: var(--card-hover); border-color: var(--border-accent); }
+
+    .s-up { border-left: 5px solid var(--green); }
+    .s-up:hover { box-shadow: 0 0 20px rgba(16, 185, 129, 0.18); }
+
+    .s-down {
+      border-left: 5px solid var(--red);
+      background: rgba(239, 68, 68, 0.08);
+      animation: borderFlash 1.6s infinite alternate;
+    }
+    @keyframes borderFlash {
+      from { border-left-color: rgba(239, 68, 68, 0.4); }
+      to { border-left-color: var(--red); box-shadow: 0 0 20px rgba(239, 68, 68, 0.35); }
+    }
+
+    .s-yel { border-left: 5px solid var(--yellow); background: rgba(245, 158, 11, 0.06); }
+    .s-pend { border-left: 5px solid var(--dim); }
+
+    .ct { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+    .cn-wrap { display: flex; flex-direction: column; gap: 0.15rem; }
+    .cn { font-size: 0.96rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
+    .csw { font-size: 0.7rem; color: var(--muted); font-family: var(--mono); }
+    .cip { font-family: var(--mono); font-size: 0.78rem; color: var(--cyan); font-weight: 600; }
+
+    .sbadge {
+      font-size: 0.68rem; font-weight: 800; font-family: var(--mono);
+      padding: 0.22rem 0.55rem; border-radius: 6px; flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 0.3rem;
+    }
+    .sb-up  { background: rgba(16, 185, 129, 0.15); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .sb-dn  { background: rgba(239, 68, 68, 0.2); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.5); }
+    .sb-yl  { background: rgba(245, 158, 11, 0.15); color: var(--yellow); border: 1px solid rgba(245, 158, 11, 0.35); }
+    .sb-pd  { background: rgba(100, 116, 139, 0.15); color: var(--dim); }
+
+    /* Stats Grid */
+    .c-stats {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      background: rgba(0, 0, 0, 0.35); border-radius: 8px;
+      padding: 0.45rem 0.6rem; gap: 0.3rem;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .stat-item { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .stat-lbl { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; font-weight: 700; }
+    .stat-val { font-family: var(--mono); font-size: 0.8rem; font-weight: 800; }
+
+    /* Sparkline */
+    .sparkline-wrap {
+      display: flex; align-items: flex-end; gap: 2px;
+      height: 22px; width: 100%;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 5px; padding: 2px 4px;
+    }
+    .spark-bar {
+      flex: 1; min-width: 4px; border-radius: 2px;
+      background: var(--cyan); transition: height 0.3s;
+    }
+    .spark-bar.dn { background: var(--red); }
+    .spark-bar.hi { background: var(--yellow); }
+
+    /* Card Actions */
+    .card-actions {
+      display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
+      margin-top: 0.2rem; padding-top: 0.3rem; border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .ca-left { display: flex; align-items: center; gap: 0.35rem; }
+    .ca-right { display: flex; align-items: center; gap: 0.35rem; }
+
+    .dt-badge {
+      font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+      color: #ff5e78; background: rgba(255, 42, 75, 0.15);
+      padding: 0.2rem 0.45rem; border-radius: 5px;
+      display: flex; align-items: center; gap: 0.3rem;
+    }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-state {
+      grid-column: 1/-1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 3.5rem 1.5rem;
+      background: var(--card); border-radius: 16px; border: 1px solid var(--border);
+    }
+    .empty-icon {
+      width: 70px; height: 70px; border-radius: 18px;
+      background: rgba(0, 240, 255, 0.08); border: 1px solid rgba(0, 240, 255, 0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; color: var(--cyan); margin-bottom: 1.2rem;
+    }
+
+    /* ===== MODALS ===== */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
+      z-index: 1000; display: none; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border-accent);
+      border-radius: 16px; width: 100%; max-width: 780px; max-height: 90vh;
+      display: flex; flex-direction: column; overflow: hidden;
+      box-shadow: 0 0 50px rgba(0, 240, 255, 0.2);
+    }
+    .mhead {
+      background: rgba(14, 21, 40, 0.9); padding: 0.9rem 1.3rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .mtitle { font-size: 1.1rem; font-weight: 800; display: flex; align-items: center; gap: 0.6rem; }
+    .mclose { background: none; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; }
+    .mclose:hover { color: #fff; }
+    .mbody { padding: 1.2rem 1.4rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
+
+    .term-window {
+      background: #040711; border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 10px; padding: 1rem;
+      font-family: var(--mono); font-size: 0.82rem; color: #4ade80;
+      min-height: 220px; max-height: 340px; overflow-y: auto;
+      white-space: pre-wrap; line-height: 1.5;
+    }
+
+    .cmd-preset-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem;
+    }
+    .cmd-btn {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
+      color: var(--text); padding: 0.4rem 0.6rem; border-radius: 7px;
+      font-family: var(--mono); font-size: 0.73rem; text-align: left; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cmd-btn:hover { background: rgba(0, 240, 255, 0.15); border-color: var(--cyan); color: #fff; }
+
+    /* Toast */
+    .toast-box {
+      position: fixed; top: 1.2rem; right: 1.5rem; z-index: 2000;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .toast {
+      background: var(--card-hover); border: 1px solid var(--border-accent);
+      padding: 0.75rem 1.1rem; border-radius: 10px; font-size: 0.85rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      display: flex; align-items: center; gap: 0.6rem;
+      animation: toastIn 0.3s ease;
+    }
+    @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* Feed Drawer */
+    .alarm-feed {
+      margin: 1rem 1.5rem 0 1.5rem;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.75rem 1rem;
+      display: flex; flex-direction: column; gap: 0.4rem;
+    }
+    .af-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+    .af-list { display: flex; flex-direction: column; gap: 0.3rem; max-height: 90px; overflow-y: auto; font-family: var(--mono); font-size: 0.76rem; }
+    .af-row { display: flex; align-items: center; gap: 0.5rem; }
+  </style>
+</head>
+<body>
+
+  <div class="glow g1"></div>
+  <div class="glow g2"></div>
+
+  <!-- Audio Alerts -->
+  <audio id="snd-down" src="https://assets.mixkit.co/active_storage/sfx/2874/2874-preview.mp3" preload="auto"></audio>
+  <audio id="snd-up" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3" preload="auto"></audio>
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-satellite-dish"></i>
+      </div>
+      <div>
+        <div class="brand-title">Ariz<span>Live</span></div>
+        <div class="brand-tag">Real ICMP Ping & Switch Console</div>
+      </div>
+    </div>
+
+    <!-- Live Status Indicators -->
+    <div class="nav-pills">
+      <div class="ws-badge" id="ws-badge">
+        <span class="pd r"></span> <span id="ws-txt">Connecting...</span>
+      </div>
+
+      <div class="pill p-green" onclick="setFilter('up')" id="pill-up">
+        <span class="pd g"></span> <span id="cnt-up">0</span> Online
+      </div>
+      <div class="pill p-red" onclick="setFilter('down')" id="pill-down">
+        <span class="pd r"></span> <span id="cnt-down">0</span> Down
+      </div>
+
+      <button class="btn btn-putty btn-sm" onclick="openPuttyModal('', '10.0.0.1', 'Core-Switch')">
+        <i class="fa-solid fa-terminal"></i> PuTTY / SSH
+      </button>
+
+      <button class="btn btn-dark btn-sm" id="btn-mute" onclick="toggleMute()">
+        <i class="fa-solid fa-volume-high" id="mute-icon"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ADD DEVICE BAR -->
+  <section class="add-panel">
+    <div class="fld">
+      <label>Device Name / Tag</label>
+      <input type="text" id="add-name" class="inp w200" placeholder="e.g. Spine-SW-01 / Core-Router" />
+    </div>
+
+    <div class="fld">
+      <label>IP Address / Hostname</label>
+      <input type="text" id="add-ip" class="inp w160" placeholder="10.0.0.1 or 8.8.8.8" onkeydown="if(event.key==='Enter') addNewSite()" />
+    </div>
+
+    <div class="fld">
+      <label>Switch / Port Ref</label>
+      <input type="text" id="add-sw" class="inp w120" placeholder="SW-P1" />
+    </div>
+
+    <div class="fld">
+      <label>Packet Size (Bytes)</label>
+      <select id="add-pktsize" class="inp w100">
+        <option value="32" selected>32 B</option>
+        <option value="64">64 B</option>
+        <option value="512">512 B</option>
+        <option value="1472">1472 B (MTU)</option>
+      </select>
+    </div>
+
+    <button class="btn btn-cyan" id="add-btn" onclick="addNewSite()">
+      <i class="fa-solid fa-plus"></i> Add & Ping
+    </button>
+
+    <button class="btn btn-purple" onclick="openBulkModal()">
+      <i class="fa-solid fa-file-import"></i> Bulk Import
+    </button>
+
+    <button class="btn btn-dark" onclick="pingAllNow()">
+      <i class="fa-solid fa-rotate"></i> Ping All
+    </button>
+
+    <button class="btn btn-dark" onclick="clearAllSites()" style="margin-left:auto;">
+      <i class="fa-solid fa-trash"></i> Clear All
+    </button>
+  </section>
+
+  <!-- CONTROLS & SEARCH BAR -->
+  <section class="controls">
+    <div class="sw">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" class="sinp" id="search-inp" placeholder="Search device name, IP, switch port..." oninput="render()" />
+    </div>
+
+    <div class="cr">
+      <select class="sel" id="sort-sel" onchange="render()">
+        <option value="status">Sort: Down First</option>
+        <option value="latency">Sort: Latency (High to Low)</option>
+        <option value="name">Sort: Device Name</option>
+        <option value="ip">Sort: IP Address</option>
+      </select>
+
+      <div class="pill" style="border-color:rgba(0,240,255,0.3); color:var(--cyan);">
+        <span id="site-count-badge">0 Devices Monitored</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE ALARM FEED -->
+  <div class="alarm-feed">
+    <div class="af-head">
+      <span><i class="fa-solid fa-tower-broadcast"></i> Live Network Activity Feed</span>
+      <span style="cursor:pointer; color:var(--cyan);" onclick="document.getElementById('af-rows').innerHTML=''">Clear Feed</span>
+    </div>
+    <div class="af-list" id="af-rows">
+      <div class="af-row" style="color:var(--muted);"><i class="fa-solid fa-circle-info"></i> ArizLive Ready. Add any IP address above to begin real ICMP pinging.</div>
+    </div>
+  </div>
+
+  <!-- SITES & DEVICES GRID -->
+  <main class="grid-wrap">
+    <div class="sites-grid" id="sites-grid">
+      <!-- Dynamic Site Cards will render here -->
+    </div>
+  </main>
+
+  <!-- PUTTY & SWITCH CLI TERMINAL MODAL -->
+  <div class="modal-overlay" id="putty-modal">
+    <div class="modal-box">
+      <div class="mhead">
+        <div class="mtitle">
+          <i class="fa-solid fa-terminal" style="color:var(--green);"></i>
+          <span>ArizLive PuTTY & Switch Diagnostic Console</span>
+        </div>
+        <button class="mclose" onclick="closePuttyModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="mbody">
+        <div style="display:flex; gap:0.6rem; align-items:flex-end; flex-wrap:wrap; background:rgba(0,0,0,0.4); padding:0.8rem; border-radius:10px; border:1px solid var(--border);">
+          <div class="fld">
+            <label>Switch / Target IP</label>
+            <input type="text" id="term-ip" class="inp w160" value="10.0.0.1" />
+          </div>
+          <div class="fld">
+            <label>Port</label>
+            <input type="number" id="term-port" class="inp w100" value="22" />
+          </div>
+          <div class="fld">
+            <label>Username</label>
+            <input type="text" id="term-user" class="inp w120" value="admin" />
+          </div>
+          <div class="fld">
+            <label>Protocol</label>
+            <select id="term-proto" class="inp w100">
+              <option value="ssh" selected>SSH (22)</option>
+              <option value="telnet">Telnet (23)</option>
+            </select>
+          </div>
+          <button class="btn btn-putty" onclick="launchPuTTYApp()">
+            <i class="fa-solid fa-rocket"></i> Launch Local PuTTY
+          </button>
+          <button class="btn btn-dark" onclick="copySSHCommand()">
+            <i class="fa-solid fa-copy"></i> Copy SSH Cmd
+          </button>
+        </div>
+
+        <div>
+          <label style="font-size:0.7rem; color:var(--muted); font-weight:700; text-transform:uppercase;">Quick Diagnostic Switch Checks:</label>
+          <div class="cmd-preset-grid" style="margin-top:0.4rem;">
+            <button class="cmd-btn" onclick="runSwitchCommand('show ip int brief')">⚡ show ip int brief</button>
+            <button class="cmd-btn" onclick="runSwitchCommand('show interfaces status')">🔌 show interfaces status</button>
+            <button class="cmd-btn" onclick="runSwitchCommand('show ip route')">🗺️ show ip route</button>
+            <button class="cmd-btn" onclick="runSwitchCommand('show logging | last 5')">📜 show logging</button>
+            <button class="cmd-btn" onclick="runTracerouteFromModal()">📍 Real Traceroute</button>
+          </div>
+        </div>
+
+        <div class="term-window" id="term-output">ArizLive Switch Diagnostic Terminal Ready.
+Select a quick check button above or type any command to query switch telemetry.</div>
+
+        <div style="display:flex; gap:0.5rem;">
+          <input type="text" id="term-cmd-inp" class="inp" style="flex:1;" placeholder="Enter switch command (e.g. show vlan brief, ping 10.0.0.1)..." onkeydown="if(event.key==='Enter') runCustomSwitchCmd()" />
+          <button class="btn btn-cyan" onclick="runCustomSwitchCmd()"><i class="fa-solid fa-play"></i> Run</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BULK IMPORT MODAL -->
+  <div class="modal-overlay" id="bulk-modal">
+    <div class="modal-box" style="max-width:520px;">
+      <div class="mhead">
+        <div class="mtitle"><i class="fa-solid fa-file-import" style="color:var(--cyan);"></i> Bulk Import Devices & IPs</div>
+        <button class="mclose" onclick="document.getElementById('bulk-modal').classList.remove('open')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="mbody">
+        <p style="font-size:0.8rem; color:var(--muted);">Format per line: <code>DeviceName, IPAddress, SwitchPort</code></p>
+        <textarea id="bulk-txt" class="inp" style="height:150px; width:100%; font-size:0.8rem;" placeholder="Core-Router, 10.0.0.1, SW-Core
+Primary-WAN, 8.8.8.8, WAN-01
+Backup-WAN, 1.1.1.1, WAN-02
+Spine-Switch-02, 10.0.1.2, Gi0/2"></textarea>
+        <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+          <button class="btn btn-dark" onclick="document.getElementById('bulk-modal').classList.remove('open')">Cancel</button>
+          <button class="btn btn-cyan" onclick="importBulk()"><i class="fa-solid fa-check"></i> Import & Ping</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-box" id="toast-box"></div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    let sessionId = getOrCreateTabSession();
+    let ws = null;
+    let wsConnected = false;
+    let sites = {};
+    let activeFilter = 'all';
+    let isMuted = false;
+
+    function getOrCreateTabSession() {
+      let s = sessionStorage.getItem('arizlive_session_id');
+      if (!s) {
+        s = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+        sessionStorage.setItem('arizlive_session_id', s);
+      }
+      return s;
+    }
+
+    function connectWS() {
+      try {
+        ws = new WebSocket('ws://localhost:3000');
+
+        ws.onopen = () => {
+          wsConnected = true;
+          setWsBadge(true);
+          document.getElementById('add-btn').disabled = false;
+          ws.send(JSON.stringify({ type: 'INIT_SESSION', sessionId }));
+          addActivityLog('✅ Connected to ArizLive Real-Ping Server (localhost:3000)', 'i');
+        };
+
+        ws.onmessage = (evt) => {
+          try {
+            const msg = JSON.parse(evt.data);
+            handleServerMessage(msg);
+          } catch (e) {
+            console.error('WS Parse Error:', e);
+          }
+        };
+
+        ws.onclose = () => {
+          wsConnected = false;
+          setWsBadge(false);
+          document.getElementById('add-btn').disabled = true;
+          setTimeout(connectWS, 2500);
+        };
+
+        ws.onerror = () => {
+          wsConnected = false;
+          setWsBadge(false);
+        };
+      } catch (e) {
+        setTimeout(connectWS, 2500);
+      }
+    }
+
+    function setWsBadge(online) {
+      const badge = document.getElementById('ws-badge');
+      const txt = document.getElementById('ws-txt');
+      if (online) {
+        badge.className = 'ws-badge online';
+        badge.innerHTML = '<span class="pd g"></span> <span>🔴 REAL ICMP PING — LIVE</span>';
+      } else {
+        badge.className = 'ws-badge';
+        badge.innerHTML = '<span class="pd r"></span> <span>Server Offline — Run node server.js</span>';
+      }
+    }
+
+    function handleServerMessage(msg) {
+      switch (msg.type) {
+        case 'INIT':
+          sites = {};
+          (msg.sites || []).forEach(s => { sites[s.id] = s; });
+          render();
+          break;
+
+        case 'SITE_ADDED':
+          sites[msg.site.id] = msg.site;
+          render();
+          break;
+
+        case 'SITE_REMOVED':
+          delete sites[msg.id];
+          render();
+          break;
+
+        case 'CLEARED':
+          sites = {};
+          render();
+          break;
+
+        case 'SITE_UPDATE':
+          const prev = sites[msg.site.id];
+          sites[msg.site.id] = msg.site;
+
+          if (prev) {
+            if (prev.status !== 'down' && msg.site.status === 'down') {
+              playAlertSound('down');
+              addActivityLog(`🚨 DOWN: ${msg.site.name} (${msg.site.ip}) — ICMP Timeout`, 'd');
+              showToast(`🚨 ${msg.site.name} (${msg.site.ip}) is DOWN!`, 'error');
+            } else if (prev.status === 'down' && msg.site.status !== 'down') {
+              playAlertSound('up');
+              addActivityLog(`✅ RESTORED: ${msg.site.name} (${msg.site.ip}) [Latency: ${msg.site.latency}ms]`, 'u');
+              showToast(`✅ ${msg.site.name} is back ONLINE (${msg.site.latency}ms)`, 'success');
+            }
+          }
+
+          updateCardUI(msg.site);
+          updateCounts();
+          break;
+
+        case 'BULK_ADDED':
+          (msg.sites || []).forEach(s => { sites[s.id] = s; });
+          render();
+          break;
+      }
+    }
+
+    function addNewSite() {
+      const name = document.getElementById('add-name').value.trim();
+      const ip = document.getElementById('add-ip').value.trim();
+      const sw = document.getElementById('add-sw').value.trim() || 'SW-P1';
+      const packetSize = parseInt(document.getElementById('add-pktsize').value, 10) || 32;
+
+      if (!ip) {
+        showToast('Please enter an IP address or hostname!', 'error');
+        return;
+      }
+
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+          type: 'ADD_SITE',
+          sessionId,
+          payload: { name: name || ip, ip, sw, packetSize, timeout: 2500, interval: 4000 }
+        }));
+        document.getElementById('add-name').value = '';
+        document.getElementById('add-ip').value = '';
+        showToast(`Added ${name || ip} to monitoring!`, 'success');
+      } else {
+        showToast('Server is offline. Start node server.js', 'error');
+      }
+    }
+
+    function removeSite(id) {
+      if (confirm('Remove this device from monitoring?')) {
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'REMOVE_SITE', sessionId, id }));
+        }
+      }
+    }
+
+    function pingSiteNow(id) {
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'PING_NOW', sessionId, id }));
+        showToast('Ping sent...', 'info');
+      }
+    }
+
+    function pingAllNow() {
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'PING_NOW', sessionId, id: 'all' }));
+        showToast('Pinging all devices...', 'info');
+      }
+    }
+
+    function clearAllSites() {
+      if (confirm('Clear all devices in this tab?')) {
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'CLEAR_ALL', sessionId }));
+        }
+      }
+    }
+
+    function render() {
+      const grid = document.getElementById('sites-grid');
+      const search = (document.getElementById('search-inp').value || '').toLowerCase();
+      const sortSel = document.getElementById('sort-sel').value;
+
+      let list = Object.values(sites);
+
+      list = list.filter(s => {
+        const matchSearch = (s.name || '').toLowerCase().includes(search) ||
+                            (s.ip || '').toLowerCase().includes(search) ||
+                            (s.sw || '').toLowerCase().includes(search);
+        if (!matchSearch) return false;
+
+        if (activeFilter === 'up') return s.status === 'up' || s.status === 'yellow';
+        if (activeFilter === 'down') return s.status === 'down';
+        return true;
+      });
+
+      if (sortSel === 'status') {
+        list.sort((a, b) => {
+          if (a.status === 'down' && b.status !== 'down') return -1;
+          if (b.status === 'down' && a.status !== 'down') return 1;
+          return 0;
+        });
+      } else if (sortSel === 'latency') {
+        list.sort((a, b) => (b.latency || 0) - (a.latency || 0));
+      } else if (sortSel === 'name') {
+        list.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (sortSel === 'ip') {
+        list.sort((a, b) => a.ip.localeCompare(b.ip));
+      }
+
+      if (list.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon"><i class="fa-solid fa-satellite-dish"></i></div>
+            <h3 style="font-size:1.25rem; font-weight:800; margin-bottom:0.4rem;">New Clean Ping Session</h3>
+            <p style="font-size:0.88rem; color:var(--muted); max-width:400px; line-height:1.5;">
+              Add your target IP addresses, switches, or servers in the top bar to start live ICMP ping monitoring and PuTTY switch diagnostics.
+            </p>
+          </div>
+        `;
+        updateCounts();
+        return;
+      }
+
+      grid.innerHTML = list.map(site => renderSiteCard(site)).join('');
+      updateCounts();
+    }
+
+    function renderSiteCard(site) {
+      const isDown = site.status === 'down';
+      const isYellow = site.status === 'yellow';
+      const isUp = site.status === 'up';
+
+      let statusClass = 's-pend';
+      let badgeHtml = '<span class="sbadge sb-pd"><i class="fa-solid fa-clock"></i> PENDING</span>';
+
+      if (isDown) {
+        statusClass = 's-down';
+        badgeHtml = '<span class="sbadge sb-dn"><i class="fa-solid fa-circle-xmark"></i> DOWN</span>';
+      } else if (isYellow) {
+        statusClass = 's-yel';
+        badgeHtml = `<span class="sbadge sb-yl"><i class="fa-solid fa-triangle-exclamation"></i> ${site.latency} ms</span>`;
+      } else if (isUp) {
+        statusClass = 's-up';
+        badgeHtml = `<span class="sbadge sb-up"><i class="fa-solid fa-circle-check"></i> ${site.latency} ms</span>`;
+      }
+
+      const history = site.history && site.history.length ? site.history : [0];
+      const maxLat = Math.max(...history, 100);
+      const sparkHtml = history.map(h => {
+        const pct = Math.max(10, Math.min(100, Math.round((h / maxLat) * 100)));
+        const cls = h === 0 ? 'spark-bar dn' : h > 200 ? 'spark-bar hi' : 'spark-bar';
+        return `<div class="${cls}" style="height:${pct}%;"></div>`;
+      }).join('');
+
+      return `
+        <div class="site-card ${statusClass}" id="card-${site.id}">
+          <div class="ct">
+            <div class="cn-wrap">
+              <div class="cn" title="${site.name}">${site.name}</div>
+              <div class="csw"><i class="fa-solid fa-ethernet"></i> ${site.sw || 'Switch'}</div>
+              <div class="cip">${site.ip}</div>
+            </div>
+            ${badgeHtml}
+          </div>
+
+          <div class="c-stats">
+            <div class="stat-item">
+              <span class="stat-lbl">Latency</span>
+              <span class="stat-val" style="color:${isDown ? 'var(--red)' : 'var(--cyan)'}">${site.latency !== null ? site.latency + 'ms' : 'TIMEOUT'}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-lbl">Avg / Min</span>
+              <span class="stat-val">${site.avgLatency || 0} / ${site.minLatency || 0}ms</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-lbl">Loss / Jitter</span>
+              <span class="stat-val" style="color:${site.loss > 0 ? 'var(--red)' : 'var(--green)'}">${site.loss || 0}% / ${site.jitter || 0}ms</span>
+            </div>
+          </div>
+
+          <div class="sparkline-wrap" title="Real-time Latency History">
+            ${sparkHtml}
+          </div>
+
+          ${isDown && site.downSince ? `
+            <div class="dt-badge">
+              <i class="fa-solid fa-stopwatch"></i> Down For: ${formatDownTime(site.downSince)}
+            </div>
+          ` : ''}
+
+          <div class="card-actions">
+            <div class="ca-left">
+              <button class="btn btn-putty btn-sm" onclick="openPuttyModal('${site.name}', '${site.ip}', '${site.sw}')" title="PuTTY / SSH Console">
+                <i class="fa-solid fa-terminal"></i> PuTTY
+              </button>
+              <button class="btn btn-dark btn-sm" onclick="pingSiteNow(${site.id})" title="Ping Now">
+                <i class="fa-solid fa-rotate"></i>
+              </button>
+            </div>
+
+            <div class="ca-right">
+              <button class="btn btn-dark btn-sm" onclick="runTracerouteForCard('${site.ip}')" title="Traceroute">
+                <i class="fa-solid fa-route"></i>
+              </button>
+              <button class="btn btn-dark btn-sm" onclick="removeSite(${site.id})" title="Delete" style="color:var(--red);">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateCardUI(site) {
+      const el = document.getElementById(`card-${site.id}`);
+      if (el) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = renderSiteCard(site);
+        el.replaceWith(tempDiv.firstElementChild);
+      } else {
+        render();
+      }
+    }
+
+    function updateCounts() {
+      const list = Object.values(sites);
+      const upCnt = list.filter(s => s.status === 'up' || s.status === 'yellow').length;
+      const downCnt = list.filter(s => s.status === 'down').length;
+
+      document.getElementById('cnt-up').textContent = upCnt;
+      document.getElementById('cnt-down').textContent = downCnt;
+      document.getElementById('site-count-badge').textContent = `${list.length} Devices Monitored`;
+    }
+
+    function setFilter(f) {
+      activeFilter = activeFilter === f ? 'all' : f;
+      document.getElementById('pill-up').classList.toggle('active', activeFilter === 'up');
+      document.getElementById('pill-down').classList.toggle('active', activeFilter === 'down');
+      render();
+    }
+
+    function formatDownTime(since) {
+      if (!since) return '0s';
+      const sec = Math.floor((Date.now() - since) / 1000);
+      if (sec < 60) return `${sec}s`;
+      const min = Math.floor(sec / 60);
+      const remSec = sec % 60;
+      if (min < 60) return `${min}m ${remSec}s`;
+      const hrs = Math.floor(min / 60);
+      return `${hrs}h ${min % 60}m`;
+    }
+
+    function openPuttyModal(name, ip, sw) {
+      if (ip) document.getElementById('term-ip').value = ip;
+      document.getElementById('term-output').textContent = `ArizLive Switch CLI Terminal Ready for [${name || 'Switch'}] (${ip || '10.0.0.1'})...\nReady for diagnostic commands.`;
+      document.getElementById('putty-modal').classList.add('open');
+    }
+
+    function closePuttyModal() {
+      document.getElementById('putty-modal').classList.remove('open');
+    }
+
+    async function launchPuTTYApp() {
+      const ip = document.getElementById('term-ip').value.trim();
+      const port = document.getElementById('term-port').value.trim() || 22;
+      const user = document.getElementById('term-user').value.trim() || 'admin';
+      const protocol = document.getElementById('term-proto').value;
+
+      showToast(`Launching PuTTY / SSH console for ${ip}...`, 'info');
+
+      try {
+        const res = await fetch('/api/launch-putty', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip, port, user, protocol })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'PuTTY window opened!', 'success');
+          appendTermLog(`\n[SUCCESS] ${data.message} (Method: ${data.method})`);
+        } else {
+          showToast('Could not auto-launch. Command copied to clipboard!', 'error');
+          navigator.clipboard.writeText(data.cmd || `ssh ${user}@${ip}`);
+          appendTermLog(`\n[MANUAL] Run in terminal: ${data.cmd}`);
+        }
+      } catch (e) {
+        showToast('Error communicating with backend', 'error');
+      }
+    }
+
+    function copySSHCommand() {
+      const ip = document.getElementById('term-ip').value.trim();
+      const port = document.getElementById('term-port').value.trim() || 22;
+      const user = document.getElementById('term-user').value.trim() || 'admin';
+      const cmd = `ssh -p ${port} ${user}@${ip}`;
+      navigator.clipboard.writeText(cmd);
+      showToast(`Copied: ${cmd}`, 'success');
+    }
+
+    async function runSwitchCommand(cmd) {
+      const ip = document.getElementById('term-ip').value.trim();
+      appendTermLog(`\n> ${cmd} (Running on ${ip})...`);
+
+      try {
+        const res = await fetch('/api/switch-cmd', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip, switchName: 'CORE-SW', cmd })
+        });
+        const data = await res.json();
+        appendTermLog(`\n${data.output}\n`);
+      } catch (e) {
+        appendTermLog(`\n[ERROR] Command failed: ${e.message}`);
+      }
+    }
+
+    function runCustomSwitchCmd() {
+      const inp = document.getElementById('term-cmd-inp');
+      const cmd = inp.value.trim();
+      if (!cmd) return;
+      inp.value = '';
+      runSwitchCommand(cmd);
+    }
+
+    async function runTracerouteFromModal() {
+      const ip = document.getElementById('term-ip').value.trim();
+      runTracerouteForCard(ip);
+    }
+
+    async function runTracerouteForCard(ip) {
+      openPuttyModal('Traceroute Host', ip, 'Router');
+      appendTermLog(`\n📍 Executing Real Traceroute to ${ip} (Max 15 hops)... Please wait ~5-10s...\n`);
+
+      try {
+        const res = await fetch('/api/traceroute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip })
+        });
+        const data = await res.json();
+        appendTermLog(`\n=== Traceroute Output ===\n${data.output}\n`);
+      } catch (e) {
+        appendTermLog(`\n[ERROR] Traceroute failed: ${e.message}`);
+      }
+    }
+
+    function appendTermLog(text) {
+      const term = document.getElementById('term-output');
+      term.textContent += text;
+      term.scrollTop = term.scrollHeight;
+    }
+
+    function openBulkModal() {
+      document.getElementById('bulk-modal').classList.add('open');
+    }
+
+    function importBulk() {
+      const text = document.getElementById('bulk-txt').value.trim();
+      if (!text) return;
+
+      const lines = text.split('\n');
+      const newSites = [];
+
+      lines.forEach(line => {
+        const parts = line.split(',').map(s => s.trim());
+        if (parts.length >= 2) {
+          newSites.push({
+            name: parts[0],
+            ip: parts[1],
+            sw: parts[2] || 'SW-P1',
+            timeout: 2500,
+            interval: 4000
+          });
+        }
+      });
+
+      if (newSites.length > 0 && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'BULK_ADD', sessionId, sites: newSites }));
+        document.getElementById('bulk-modal').classList.remove('open');
+        showToast(`Imported ${newSites.length} devices!`, 'success');
+      }
+    }
+
+    function addActivityLog(msg, type) {
+      const container = document.getElementById('af-rows');
+      const row = document.createElement('div');
+      row.className = 'af-row';
+      const time = new Date().toLocaleTimeString();
+      const color = type === 'd' ? 'var(--red)' : type === 'u' ? 'var(--green)' : 'var(--cyan)';
+      row.innerHTML = `<span style="color:var(--dim);">[${time}]</span> <span style="color:${color};">${msg}</span>`;
+      container.prepend(row);
+    }
+
+    function playAlertSound(type) {
+      if (isMuted) return;
+      try {
+        const audio = document.getElementById(type === 'down' ? 'snd-down' : 'snd-up');
+        if (audio) {
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      const icon = document.getElementById('mute-icon');
+      icon.className = isMuted ? 'fa-solid fa-volume-xmark' : 'fa-solid fa-volume-high';
+      showToast(isMuted ? 'Audio alerts muted' : 'Audio alerts enabled', 'info');
+    }
+
+    function showToast(msg, type = 'info') {
+      const box = document.getElementById('toast-box');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      const icon = type === 'error' ? 'fa-triangle-exclamation' : type === 'success' ? 'fa-circle-check' : 'fa-info-circle';
+      const color = type === 'error' ? 'var(--red)' : type === 'success' ? 'var(--green)' : 'var(--cyan)';
+      toast.innerHTML = `<i class="fa-solid ${icon}" style="color:${color};"></i> <span>${msg}</span>`;
+      box.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      connectWS();
+    });
+  </script>
+</body>
+</html>
