@@ -11,6 +11,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <style>
     :root {
@@ -516,7 +517,13 @@ Select a quick check button above or type any command to query switch telemetry.
         <button class="mclose" onclick="document.getElementById('bulk-modal').classList.remove('open')"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="mbody">
-        <p style="font-size:0.8rem; color:var(--muted);">Format per line: <code>DeviceName, IPAddress, SwitchPort</code></p>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+          <p style="font-size:0.8rem; color:var(--muted);">Format per line: <code>DeviceName, IPAddress, SwitchPort</code></p>
+          <label class="btn btn-dark btn-sm" style="cursor:pointer;">
+            <i class="fa-solid fa-upload"></i> Upload CSV/Excel
+            <input type="file" id="bulk-file" accept=".csv, .xlsx, .xls" style="display:none;" onchange="handleBulkFileUpload(event)">
+          </label>
+        </div>
         <textarea id="bulk-txt" class="inp" style="height:150px; width:100%; font-size:0.8rem;" placeholder="Core-Router, 10.0.0.1, SW-Core
 Primary-WAN, 8.8.8.8, WAN-01
 Backup-WAN, 1.1.1.1, WAN-02
@@ -1010,6 +1017,62 @@ Spine-Switch-02, 10.0.1.2, Gi0/2"></textarea>
         document.getElementById('bulk-modal').classList.remove('open');
         showToast(`Imported ${newSites.length} devices!`, 'success');
       }
+    }
+
+    function handleBulkFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          let parsedLines = [];
+          for (let i = 0; i < json.length; i++) {
+            const row = json[i];
+            if (row.length === 0) continue;
+            // Assuming order: Name, IP, Switch/Port
+            let name = row[0] || '';
+            let ip = row[1] || '';
+            let sw = row[2] || '';
+
+            // If IP is empty but Name looks like an IP, use it
+            if (!ip && String(name).match(/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/)) {
+              ip = name;
+              name = 'Device';
+            }
+
+            if (ip) {
+              parsedLines.push(`${name}, ${ip}, ${sw}`);
+            }
+          }
+          
+          if (parsedLines.length > 0) {
+            const txt = document.getElementById('bulk-txt');
+            const currentVal = txt.value.trim();
+            txt.value = (currentVal ? currentVal + '\\n' : '') + parsedLines.join('\\n');
+            showToast(`Parsed ${parsedLines.length} rows from file. You can now edit them or click Import.`, 'success');
+          } else {
+            showToast('No valid rows found in file.', 'error');
+          }
+        } catch (error) {
+          console.error('File parsing error:', error);
+          showToast('Failed to parse file. Make sure it is a valid CSV or Excel file.', 'error');
+        }
+        // Reset file input so same file can be selected again
+        event.target.value = '';
+      };
+      
+      reader.onerror = function() {
+        showToast('Error reading file', 'error');
+      };
+      
+      reader.readAsArrayBuffer(file);
     }
 
     function addActivityLog(msg, type) {
