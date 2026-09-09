@@ -89,8 +89,15 @@ function parsePingOutput(stdout, stderr, timeMs) {
     if (timeMatch) latency = Math.round(parseFloat(timeMatch[1]));
   }
 
+  // If latency could not be extracted, treat as down (no reply)
   if (latency === null) {
-    latency = Math.max(1, Math.min(timeMs, 999));
+    return {
+      status: 'down',
+      latency: null,
+      loss: 100,
+      raw: downReason,
+      detail: output.trim().split('\n').filter(Boolean).slice(-2).join(' ')
+    };
   }
 
   let loss = 0;
