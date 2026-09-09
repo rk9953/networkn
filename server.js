@@ -23,6 +23,17 @@ app.use(express.json());
 
 const isWindows = os.platform() === 'win32';
 
+// Simple IPv4 validation – ensures four octets, each 0‑255
+function isValidIPv4(ip) {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every(p => {
+    if (!/^[0-9]+$/.test(p)) return false;
+    const n = Number(p);
+    return n >= 0 && n <= 255;
+  });
+}
+
 // ============================================================
 // REAL ICMP PING via OS system command
 // ============================================================
@@ -49,12 +60,21 @@ function parsePingOutput(stdout, stderr, timeMs) {
     output.includes('General failure') ||
     output.includes('Transmit failed');
 
+  // Determine specific failure reason for richer client messages
+  const downReason = (() => {
+    if (output.includes('Request timed out')) return 'Request timed out';
+    if (output.includes('Destination host unreachable')) return 'Destination host unreachable';
+    if (output.includes('could not find host') || output.includes('Ping request could not find host')) return 'Host not found';
+    return 'Unknown failure';
+  })();
+
   if (isDown) {
     return { 
       status: 'down', 
       latency: null, 
       loss: 100, 
-      raw: output.trim().split('\n').filter(Boolean).slice(-2).join(' ') || 'Request timed out.' 
+      raw: downReason,
+      detail: output.trim().split('\n').filter(Boolean).slice(-2).join(' ') 
     };
   }
 
@@ -89,17 +109,20 @@ function parsePingOutput(stdout, stderr, timeMs) {
 
 function doPing(ip, timeoutMs = 2500, packetSize = 32) {
   return new Promise((resolve) => {
-    const cleanIp = String(ip).trim().replace(/[^a-zA-Z0-9.\-_]/g, '');
-    if (!cleanIp) {
-      return resolve({ status: 'down', latency: null, loss: 100, raw: 'Invalid IP address' });
+    const rawIp = String(ip).trim();
+    // Strict IPv4 validation – reject anything else
+    if (!isValidIPv4(rawIp)) {
+      return resolve({ status: 'down', latency: null, loss: 100, raw: 'Invalid IPv4 address' });
     }
-
+    const cleanIp = rawIp.replace(/[^0-9.]/g, '');
     const cmd = buildPingCmd(cleanIp, timeoutMs, packetSize);
     const t0 = Date.now();
 
     exec(cmd, { timeout: timeoutMs + 2000 }, (error, stdout, stderr) => {
       const elapsed = Date.now() - t0;
       const result = parsePingOutput(stdout || '', stderr || '', elapsed);
+      // Preserve original raw output for client distinction
+      result.raw = result.raw || (error ? error.message : '');
       resolve(result);
     });
   });
